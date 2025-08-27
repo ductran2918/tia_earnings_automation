@@ -1,0 +1,17 @@
+# Streamlit configuration for clean, professional theme
+# Minimal settings for Financial PDF Loader
+
+[theme]
+# Clean, professional color scheme
+primaryColor = "#1f77b4"        # Blue for primary actions
+backgroundColor = "#ffffff"      # White background
+secondaryBackgroundColor = "#f0f2f6"  # Light gray for secondary areas
+textColor = "#262730"           # Dark text for readability
+
+[server]
+# Disable file watcher for better performance with large PDFs
+fileWatcherType = "none"
+
+[browser]
+# Gather usage stats disabled for internal tool
+gatherUsageStats = false
