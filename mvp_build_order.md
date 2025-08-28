@@ -15,7 +15,7 @@
 - Echo path.  
 **Test:** confirm file is created and cleaned on rerun.
 
-## 3. Page text extraction
+`## 3. Page text extraction
 - Implement extractor (per page).
 - Render first 300 chars per page in an expander.  
 **Test:** text appears for both PDFs.
@@ -23,7 +23,7 @@
 ## 4. Snippet finder
 - Regex lines for `Revenue` and `Profit for the period|Net profit|Net income`.
 - Include ±2 lines context + page index.  
-**Test:** see 1–3 short snippets for each metric.
+**Test:** see 1–3 short snippets for each metric.`
 
 ## 5. Config panel
 - Inputs for API key, model, temperature=0, max_tokens=256.

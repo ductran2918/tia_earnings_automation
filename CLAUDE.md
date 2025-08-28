@@ -19,7 +19,14 @@ pip install -r requirements.txt
 
 ### Running the Application
 ```bash
-streamlit run app.py
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run the main application
+streamlit run app/main.py
+
+# Alternative: Run with specific port
+streamlit run app/main.py --server.port 8501
 ```
 
 ## Architecture
@@ -74,22 +81,46 @@ Required in `.env` file:
 ## File Structure
 
 ```
-├── app.py                 # Main Streamlit application
-├── extractors/           # PDF processing modules
-├── data/                 # Processed data and CSV files
-├── samples/             # Sample PDF files for testing
-├── requirements.txt     # Python dependencies
-├── .env                # Environment variables (not committed)
-└── mvp_build_order.md  # Development roadmap
+├── app/
+│   └── main.py           # Main Streamlit application (Steps 1-2 implemented)
+├── .tmp/                 # Temporary PDF storage (auto-created)
+├── .venv/                # Python virtual environment
+├── .streamlit/           # Streamlit configuration
+├── requirements.txt      # Python dependencies
+├── .env                  # Environment variables (not committed)
+├── mvp_build_order.md    # 12-step development roadmap
+├── prompt_step*.md       # Step-specific implementation guides
+└── CLAUDE.md             # This file
 ```
+
+**Note**: Planned directories not yet created:
+- `extractors/` - PDF processing modules (Step 3+)
+- `data/` - Processed data and CSV files (Step 8+)  
+- `samples/` - Sample PDF files for testing
+
+## Current Implementation Status
+
+**✅ Completed (Steps 1-2)**:
+- Streamlit shell with file uploader interface (`app/main.py`)
+- PDF validation (MIME type, file size, page count)
+- Temporary file handling with timestamped storage (`.tmp/`)
+- Basic PDF processing with pdfplumber integration
+- Error handling for corrupted/encrypted PDFs
+
+**🔲 Remaining (Steps 3-12)**:
+- Page text extraction and snippet detection (regex-based)
+- Configuration panel for API keys and LLM parameters  
+- Google Gemini integration for structured data extraction
+- Results UI with evidence display and CSV persistence
+- Advanced features: caching, period detection, history interface
 
 ## Development Workflow
 
 - Follow the step-by-step build order from `mvp_build_order.md`
+- Current active development at Step 3 (page text extraction)
 - Each step should be demoable and add ≤ 60 lines of code
-- Test each step thoroughly before proceeding to the next
-- Use file hash-based caching to minimize API costs during development
-- Handle edge cases: missing snippets, malformed PDFs, API failures
+- Use `.tmp/` directory for uploaded file storage during development
+- Leverage existing virtual environment (`.venv/`) with all dependencies installed
 
 ## Testing
 

@@ -2,9 +2,11 @@ import streamlit as st
 import pdfplumber
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Optional
-import tempfile
+from typing import Dict
 import os
+import json
+import google.generativeai as genai
+from dotenv import load_dotenv
 
 
 def save_temp_file(uploaded_file) -> Path:
@@ -43,12 +45,12 @@ def get_pdf_info(pdf_path: Path) -> Dict:
                 "success": True
             }
     
-    except Exception as e:
+    except Exception as exc:
         return {
             "page_count": 0,
             "has_text": False,
             "success": False,
-            "error": str(e)
+            "error": f"{exc}"
         }
 
 
@@ -70,8 +72,87 @@ def read_page_preview(pdf_path: Path, page_idx: int = 0, max_chars: int = 300) -
             else:
                 return cleaned_text[:max_chars] + "..."
     
-    except Exception as e:
-        return f"Error reading page preview: {str(e)}"
+    except Exception as exc:
+        return f"Error reading page preview: {exc}"
+
+
+def extract_full_pdf_text(pdf_path: Path) -> str:
+    """Extract all text from PDF as a single string."""
+    try:
+        full_text = ""
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                full_text += page_text + "\n\n"
+        return full_text.strip()
+    except Exception as exc:
+        st.error(f"Error extracting PDF text: {exc}")
+        return ""
+
+
+def extract_financial_data_with_llm(pdf_text: str, api_key: str, model_name: str = "gemini-1.5-flash", temperature: float = 0.0, max_tokens: int = 1024) -> Dict:
+    """Extract financial data using Gemini LLM with structured prompt."""
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name)
+        
+        prompt = f"""Extract revenue and net profit data from this financial earnings report.
+
+Return ONLY a valid JSON object with this exact structure - no explanatory text:
+
+{{
+  "revenue": {{
+    "value": "number_or_not_found",
+    "unit": "string_or_not_found", 
+    "period": "string_or_not_found",
+    "evidence": "exact_quote_or_not_found"
+  }},
+  "net_profit": {{
+    "value": "number_or_not_found",
+    "unit": "string_or_not_found",
+    "period": "string_or_not_found", 
+    "evidence": "exact_quote_or_not_found"
+  }},
+  "company_name": "string_or_not_found",
+  "report_type": "string_or_not_found"
+}}
+
+Rules:
+- Extract for the MOST RECENT reporting period only
+- For profit: use "Profit for the period" or "Net profit" - NOT operating profit
+- Keep original currency (do not convert)
+- Use "million" or "billion" for unit based on document
+- Period format: "Q2 2025" or "Three months ended June 30, 2025"
+- Evidence: exact sentence containing the metric
+- If any field cannot be found, use "not_found" as the value
+- DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON
+
+{pdf_text}"""
+        
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens
+            )
+        )
+        
+        # Parse JSON response
+        json_text = response.text.strip()
+        # Remove any potential markdown code blocks
+        if json_text.startswith('```json'):
+            json_text = json_text[7:-3]
+        elif json_text.startswith('```'):
+            json_text = json_text[3:-3]
+            
+        return json.loads(json_text)
+        
+    except json.JSONDecodeError as exc:
+        st.error(f"Failed to parse LLM response as JSON: {exc}")
+        return {"error": "Invalid JSON response from LLM"}
+    except Exception as exc:
+        st.error(f"LLM extraction failed: {exc}")
+        return {"error": f"LLM error: {exc}"}
 
 
 def format_file_size(size_bytes: int) -> str:
@@ -85,13 +166,38 @@ def format_file_size(size_bytes: int) -> str:
 
 
 def main():
+    # Load environment variables
+    load_dotenv()
+    
     st.set_page_config(
-        page_title="Financial PDF Loader",
-        page_icon="📄",
+        page_title="Financial Data Extractor",
+        page_icon="📊",
         layout="wide"
     )
     
-    st.title("Financial PDF Loader — Step 1: Upload")
+    st.title("Financial Data Extractor — LLM-Powered")
+    
+    # Configuration Panel (Sidebar) - User-facing inputs only
+    with st.sidebar:
+        st.header("⚙️ Settings")
+        
+        # Company name input (the only user-facing setting)
+        company_hint = st.text_input(
+            "Company Name",
+            placeholder="e.g., Grab Holdings, Sea Limited",
+            help="Enter the company name as it appears in financial reports (optional but recommended for validation)"
+        )
+    
+    # Internal configuration (hidden from users)
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    model_name = "gemini-1.5-flash"  # Fixed model choice
+    temperature = 0.0  # Fixed for consistent results
+    max_tokens = 1024  # Fixed token limit
+    
+    # Validation (internal)
+    if not api_key:
+        st.error("❌ System configuration error: API key not found. Please contact administrator.")
+        return
     
     # Initialize session state
     if 'uploaded_file_info' not in st.session_state:
@@ -143,7 +249,7 @@ def main():
             try:
                 # Save temporary file
                 temp_path = save_temp_file(uploaded_file)
-                st.session_state.temp_file_path = str(temp_path)
+                st.session_state.temp_file_path = f"{temp_path}"
                 
                 # Display basic file info
                 st.success("File uploaded successfully!")
@@ -178,16 +284,86 @@ def main():
                     st.subheader("Page 1 Preview")
                     st.info("No extractable text on page 1.")
                 
+                # Step 6: LLM-Based Financial Data Extraction
+                if pdf_info["success"] and pdf_info["page_count"] > 0:
+                    st.divider()
+                    st.subheader("🤖 LLM Financial Data Extraction")
+                    
+                    if st.button("📊 Extract Financial Data", type="primary"):
+                        with st.spinner("Extracting text from PDF..."):
+                            pdf_text = extract_full_pdf_text(temp_path)
+                        
+                        if pdf_text:
+                            with st.spinner(f"Analyzing with {model_name}..."):
+                                financial_data = extract_financial_data_with_llm(
+                                    pdf_text, api_key, model_name, temperature, max_tokens
+                                )
+                            
+                            if "error" not in financial_data:
+                                st.success("✅ Financial data extracted successfully!")
+                                
+                                # Display extracted data in structured format
+                                col1, col2 = st.columns([1, 1])
+                                
+                                with col1:
+                                    st.subheader("💰 Revenue")
+                                    rev = financial_data.get("revenue", {})
+                                    if rev.get("value") != "not_found":
+                                        st.metric("Value", f"{rev.get('value', 'N/A')} {rev.get('unit', '')}")
+                                        st.info(f"**Period:** {rev.get('period', 'N/A')}")
+                                        st.text_area("Evidence", rev.get('evidence', 'N/A'), height=100, key="rev_evidence")
+                                    else:
+                                        st.warning("Revenue data not found")
+                                
+                                with col2:
+                                    st.subheader("📈 Net Profit")
+                                    profit = financial_data.get("net_profit", {})
+                                    if profit.get("value") != "not_found":
+                                        st.metric("Value", f"{profit.get('value', 'N/A')} {profit.get('unit', '')}")
+                                        st.info(f"**Period:** {profit.get('period', 'N/A')}")
+                                        st.text_area("Evidence", profit.get('evidence', 'N/A'), height=100, key="profit_evidence")
+                                    else:
+                                        st.warning("Net profit data not found")
+                                
+                                # Company and report info
+                                st.divider()
+                                col3, col4 = st.columns([1, 1])
+                                with col3:
+                                    company = financial_data.get("company_name", "not_found")
+                                    if company != "not_found":
+                                        st.metric("Company", company)
+                                        # Validation against hint
+                                        if company_hint and company_hint.lower() in company.lower():
+                                            st.success("✅ Company matches expectation")
+                                    else:
+                                        st.warning("Company name not found")
+                                
+                                with col4:
+                                    report_type = financial_data.get("report_type", "not_found")
+                                    if report_type != "not_found":
+                                        st.metric("Report Type", report_type)
+                                    else:
+                                        st.warning("Report type not found")
+                                
+                                # Raw JSON for debugging
+                                with st.expander("🔍 Raw JSON Response"):
+                                    st.json(financial_data)
+                            
+                            else:
+                                st.error(f"❌ {financial_data['error']}")
+                        else:
+                            st.error("❌ Failed to extract text from PDF")
+                
                 # Status box with temp file path
                 st.subheader("Status")
                 st.code(f"Temporary file saved to: {temp_path}")
                 
-            except Exception as e:
-                st.error(f"Error processing file: {str(e)}")
+            except Exception as exc:
+                st.error(f"Error processing file: {exc}")
                 # Handle encrypted or corrupted PDFs
-                if "encrypted" in str(e).lower() or "password" in str(e).lower():
+                if "encrypted" in f"{exc}".lower() or "password" in f"{exc}".lower():
                     st.warning("This PDF appears to be encrypted or password-protected. Please use an unprotected PDF.")
-                elif "corrupted" in str(e).lower() or "invalid" in str(e).lower():
+                elif "corrupted" in f"{exc}".lower() or "invalid" in f"{exc}".lower():
                     st.warning("This PDF file appears to be corrupted or invalid. Please try a different file.")
         
         else:
