@@ -7,6 +7,8 @@ import os
 import json
 import google.generativeai as genai
 from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 
 def save_temp_file(uploaded_file) -> Path:
@@ -165,6 +167,39 @@ def format_file_size(size_bytes: int) -> str:
         return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
+def initialize_firebase():
+    """Initialize Firebase Admin SDK and return Firestore client."""
+    try:
+        # Check if Firebase is already initialized to avoid duplicate initialization
+        if firebase_admin._apps:
+            # Firebase already initialized, get existing app
+            app = firebase_admin.get_app()
+        else:
+            # Load credentials path from environment variable
+            credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+            
+            if not credentials_path:
+                st.error("❌ Firebase configuration error: FIREBASE_CREDENTIALS_PATH environment variable not found.")
+                return None
+            
+            # Validate that the credentials file exists
+            if not os.path.exists(credentials_path):
+                st.error(f"❌ Firebase credentials file not found at: {credentials_path}")
+                return None
+            
+            # Initialize Firebase Admin SDK with service account credentials
+            cred = credentials.Certificate(credentials_path)
+            app = firebase_admin.initialize_app(cred)
+        
+        # Return Firestore client instance
+        db = firestore.client()
+        return db
+        
+    except Exception as exc:
+        st.error(f"❌ Firebase initialization failed: {exc}")
+        return None
+
+
 def main():
     # Load environment variables
     load_dotenv()
@@ -187,6 +222,37 @@ def main():
             placeholder="e.g., Grab Holdings, Sea Limited",
             help="Enter the company name as it appears in financial reports (optional but recommended for validation)"
         )
+        
+        # Firebase Connection Test
+        st.divider()
+        st.subheader("🔥 Firebase Connection")
+        
+        if st.button("🔥 Test Firebase Connection", type="secondary"):
+            with st.spinner("Testing Firebase connection..."):
+                db = initialize_firebase()
+                
+                if db is not None:
+                    try:
+                        # Test a simple Firestore operation
+                        collections = db.collections()
+                        collection_names = [col.id for col in collections]
+                        
+                        st.success("✅ Firebase connected successfully!")
+                        st.info(f"**Project:** financial-data-extractor")
+                        st.info(f"**Collections found:** {len(collection_names)}")
+                        
+                        if collection_names:
+                            st.text(f"Collections: {', '.join(collection_names[:5])}")
+                        else:
+                            st.text("No collections found (new project)")
+                            
+                    except Exception as exc:
+                        st.success("✅ Firebase connected successfully!")
+                        st.warning(f"Connection successful, but couldn't list collections: {exc}")
+                        st.info("**Project:** financial-data-extractor")
+                else:
+                    st.error("❌ Firebase connection failed")
+                    st.text("Check your credentials and environment variables.")
     
     # Internal configuration (hidden from users)
     api_key = os.getenv("GEMINI_API_KEY", "")
