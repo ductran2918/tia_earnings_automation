@@ -92,44 +92,67 @@ def extract_full_pdf_text(pdf_path: Path) -> str:
         return ""
 
 
-def extract_financial_data_with_llm(pdf_text: str, api_key: str, model_name: str = "gemini-1.5-flash", temperature: float = 0.0, max_tokens: int = 1024) -> Dict:
+def extract_financial_data_with_llm(pdf_text: str, api_key: str, company_hint: str = "", model_name: str = "gemini-1.5-flash", temperature: float = 0.0, max_tokens: int = 10000) -> Dict:
     """Extract financial data using Gemini LLM with structured prompt."""
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name)
         
-        prompt = f"""Extract revenue and net profit data from this financial earnings report.
+        prompt = f"""You are a financial data extraction expert. Extract financial data from this annual financial statement text.
 
-Return ONLY a valid JSON object with this exact structure - no explanatory text:
+IMPORTANT INSTRUCTIONS:
+1. Extract data for TWO YEARS (current year and previous year) - auto-detect the years from the content
+2. Use RAW NUMBERS only (e.g., 1000000000 not 1B or 1000M)
+3. Keep original currencies as mentioned in the financial statement
+4. Use negative sign (-) for negative values/losses
+5. Return null for missing data
 
+EXTRACT THESE 7 METRICS FOR BOTH YEARS:
+
+I. Income Statement (P&L) Metrics:
+- Revenue (or Total Revenue, Net Revenue, Sales, Revenue and other income, etc.)
+- Profit or Loss Before Income Tax (or Profit Before Tax, Income Before Tax, Pre-tax Income, etc.)
+- Profit or Loss for the Year/After Income Tax (or Net Profit, Net Income, Net Loss, Profit After Tax, etc.)
+
+II. Cash Flow Statement Metrics:
+- Net Cash from Operating Activities (or Operating Cash Flow, Cash from Operations, etc.)
+- Net Cash from Investing Activities (or Cash from Investments, Investing Cash Flow, etc.)
+- Net Cash from Financing Activities (or Cash from Financing, Financing Cash Flow, etc.)
+- Cash and Cash Equivalents at End of Year (or Cash at Year End, Total Cash, etc.)
+
+REQUIRED JSON OUTPUT FORMAT:
 {{
-  "revenue": {{
-    "value": "number_or_not_found",
-    "unit": "string_or_not_found", 
-    "period": "string_or_not_found",
-    "evidence": "exact_quote_or_not_found"
+  "year_1": {{
+    "year": "YYYY",
+    "revenue": number_or_null,
+    "profit_before_tax": number_or_null,
+    "profit_after_tax": number_or_null,
+    "net_cash_operating": number_or_null,
+    "net_cash_investing": number_or_null,
+    "net_cash_financing": number_or_null,
+    "cash_end_of_year": number_or_null
   }},
-  "net_profit": {{
-    "value": "number_or_not_found",
-    "unit": "string_or_not_found",
-    "period": "string_or_not_found", 
-    "evidence": "exact_quote_or_not_found"
+  "year_2": {{
+    "year": "YYYY",
+    "revenue": number_or_null,
+    "profit_before_tax": number_or_null,
+    "profit_after_tax": number_or_null,
+    "net_cash_operating": number_or_null,
+    "net_cash_investing": number_or_null,
+    "net_cash_financing": number_or_null,
+    "cash_end_of_year": number_or_null
   }},
-  "company_name": "string_or_not_found",
-  "report_type": "string_or_not_found"
+  "currencies": ["USD", "SGD"],
+  "company_name": "extracted_company_name",
+  "report_type": "Annual Report" or "10-K" or "Financial Statements"
 }}
 
-Rules:
-- Extract for the MOST RECENT reporting period only
-- For profit: use "Profit for the period" or "Net profit" - NOT operating profit
-- Keep original currency (do not convert)
-- Use "million" or "billion" for unit based on document
-- Period format: "Q2 2025" or "Three months ended June 30, 2025"
-- Evidence: exact sentence containing the metric
-- If any field cannot be found, use "not_found" as the value
-- DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON
+Company hint (if provided): {company_hint}
 
-{pdf_text}"""
+Financial Statement Text:
+{pdf_text}
+
+Respond with ONLY the JSON object, no additional text."""
         
         response = model.generate_content(
             prompt,
@@ -362,58 +385,20 @@ def main():
                         if pdf_text:
                             with st.spinner(f"Analyzing with {model_name}..."):
                                 financial_data = extract_financial_data_with_llm(
-                                    pdf_text, api_key, model_name, temperature, max_tokens
+                                    pdf_text, api_key, company_hint, model_name, temperature, max_tokens
                                 )
                             
                             if "error" not in financial_data:
                                 st.success("✅ Financial data extracted successfully!")
                                 
-                                # Display extracted data in structured format
-                                col1, col2 = st.columns([1, 1])
+                                # Company name validation
+                                company = financial_data.get("company_name", "")
+                                if company and company_hint and company_hint.lower() in company.lower():
+                                    st.success("✅ Company name matches your hint")
                                 
-                                with col1:
-                                    st.subheader("💰 Revenue")
-                                    rev = financial_data.get("revenue", {})
-                                    if rev.get("value") != "not_found":
-                                        st.metric("Value", f"{rev.get('value', 'N/A')} {rev.get('unit', '')}")
-                                        st.info(f"**Period:** {rev.get('period', 'N/A')}")
-                                        st.text_area("Evidence", rev.get('evidence', 'N/A'), height=100, key="rev_evidence")
-                                    else:
-                                        st.warning("Revenue data not found")
-                                
-                                with col2:
-                                    st.subheader("📈 Net Profit")
-                                    profit = financial_data.get("net_profit", {})
-                                    if profit.get("value") != "not_found":
-                                        st.metric("Value", f"{profit.get('value', 'N/A')} {profit.get('unit', '')}")
-                                        st.info(f"**Period:** {profit.get('period', 'N/A')}")
-                                        st.text_area("Evidence", profit.get('evidence', 'N/A'), height=100, key="profit_evidence")
-                                    else:
-                                        st.warning("Net profit data not found")
-                                
-                                # Company and report info
-                                st.divider()
-                                col3, col4 = st.columns([1, 1])
-                                with col3:
-                                    company = financial_data.get("company_name", "not_found")
-                                    if company != "not_found":
-                                        st.metric("Company", company)
-                                        # Validation against hint
-                                        if company_hint and company_hint.lower() in company.lower():
-                                            st.success("✅ Company matches expectation")
-                                    else:
-                                        st.warning("Company name not found")
-                                
-                                with col4:
-                                    report_type = financial_data.get("report_type", "not_found")
-                                    if report_type != "not_found":
-                                        st.metric("Report Type", report_type)
-                                    else:
-                                        st.warning("Report type not found")
-                                
-                                # Raw JSON for debugging
-                                with st.expander("🔍 Raw JSON Response"):
-                                    st.json(financial_data)
+                                # Display JSON output
+                                st.subheader("📊 Extracted Financial Data")
+                                st.json(financial_data)
                             
                             else:
                                 st.error(f"❌ {financial_data['error']}")
