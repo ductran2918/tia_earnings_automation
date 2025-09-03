@@ -1,66 +1,86 @@
-# Claude Code Prompt: Add Automatic Firestore Data Saving
+# Problem 
 
-## Task
-Create a function to automatically save validated financial data to Firestore after successful LLM extraction.
+The conversion feature now works. But the extracted financial data also was converted to USD so I cannot if the tool extract right data from PDFs or not. 
 
-## Requirements
+## Sample output 
 
-### 1. Create Save Function
-Add a new function called `save_financial_data_to_firestore(financial_data: Dict, db, uploaded_filename: str) -> bool`:
-- Takes the financial data dictionary from LLM extraction
-- Takes the Firestore database client and original filename
-- Returns True if successful, False if failed
-- Handles errors gracefully with try/except
+ Extracted Financial Data
+{
+"year_1":{
+"year":"2023"
+"revenue":32641196
+"profit_before_tax":-20230767
+"profit_after_tax":-20230767
+"net_cash_operating":-14616804
+"net_cash_investing":-363021
+"net_cash_financing":-1447682
+"cash_end_of_year":28813653
+}
+"year_2":{
+"year":"2022"
+"revenue":32957514
+"profit_before_tax":-16618260
+"profit_after_tax":-16618260
+"net_cash_operating":-13115700
+"net_cash_investing":-111808
+"net_cash_financing":45221228
+"cash_end_of_year":44366439
+}
+"currencies":[
+0:"S$"
+]
+"company_name":"Glints Pte. Ltd."
+"report_type":"Annual Report"
+}
 
-### 2. Data Validation Function
-Add a validation function `validate_financial_data(financial_data: Dict) -> bool`:
-- Check if company_name is not "not_found"
-- Check if either revenue OR net_profit has valid data (not "not_found")
-- Return True if data is worth saving, False if mostly empty
-- Log validation results for debugging
+💱 Currency Conversion (SGD → USD)
+Exchange Rates Used: 2023: 0.74572, 2022: 0.72579
 
-### 3. Data Structure Design
-Structure data in Firestore as:
-```
-companies/{company_name}/reports/{report_id}
-```
-Where report_id combines period and timestamp for uniqueness (e.g., "Q2_2024_20250901_143022").
+{
+"year_1":{
+"year":"2023"
+"revenue":32641196
+"profit_before_tax":-20230767
+"profit_after_tax":-20230767
+"net_cash_operating":-14616804
+"net_cash_investing":-363021
+"net_cash_financing":-1447682
+"cash_end_of_year":28813653
+}
+"year_2":{
+"year":"2022"
+"revenue":32957514
+"profit_before_tax":-16618260
+"profit_after_tax":-16618260
+"net_cash_operating":-13115700
+"net_cash_investing":-111808
+"net_cash_financing":45221228
+"cash_end_of_year":44366439
+}
+"currencies":[
+0:"USD"
+]
+"company_name":"Glints Pte. Ltd."
+"report_type":"Annual Report"
+"original_currencies":[
+0:"S$"
+]
+"exchange_rates_used":{
+"2022":0.72579
+"2023":0.74572
+}
+}
 
-### 4. Document Fields
-Save these fields to each document:
-- All financial data from LLM (revenue, net_profit, etc.)
-- Metadata: upload_timestamp, original_filename, report_period
-- Company info: company_name, report_type
-- Processing info: model_used="gemini-1.5-flash", extraction_success=True
+# Solution
+I want you to separate the logic sequence into each step
+## Step 1
+Extract raw data from PDF by LLM. Then save the output as a json file called "raw_data.json"
 
-### 5. Automatic Integration
-Modify the existing LLM extraction workflow:
-- After successful `extract_financial_data_with_llm()` call
-- Automatically validate the extracted data
-- If validation passes: initialize Firebase and save data
-- Show "✅ Data saved successfully!" message on success
-- Show validation/save errors if they occur
-- NO manual save button needed - fully automatic
+## Step 2
+Convert all numeric keys in raw_data.json to usd by current coversion logic. save the output of this step as a file called "usd_converted_data.json" 
 
-### 6. Error Handling
-Handle scenarios gracefully:
-- Data validation failures: "⚠️ Extracted data insufficient for saving"
-- Database connection failures: "❌ Failed to save to database"
-- Invalid data formats or network issues
-- Continue showing extraction results even if save fails
+# Expected outputs
+On the front-end, I will see raw extracted data in SGD and coverted data in SGD. You don't change extracted output. 
+Two json file of step 1 and step 2 will be save into a temporary folder. 
 
-## Integration Location
-Modify the LLM extraction success section in `main()` function where it currently shows the extracted data results.
-
-## Current Workflow Context
-```python
-if st.button("📊 Extract Financial Data", type="primary"):
-    # ... existing extraction code ...
-    if "error" not in financial_data:
-        st.success("✅ Financial data extracted successfully!")
-        # ADD AUTOMATIC SAVE HERE
-        # ... existing display code ...
-```
-
-## Expected Outcome
-After successful LLM extraction, the app will automatically validate and save the data to Firestore, showing clear success/failure messages to the user without requiring manual intervention.
+Before implement this step, clear all files in .tmp folder for cleaner repo. 

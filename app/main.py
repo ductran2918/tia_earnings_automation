@@ -6,6 +6,7 @@ from typing import Dict
 import os
 import json
 import pandas as pd
+import copy
 import google.generativeai as genai
 from dotenv import load_dotenv
 import firebase_admin
@@ -249,8 +250,8 @@ def convert_sgd_to_usd(json_data: Dict) -> Dict:
         with open(json_path, 'r') as f:
             rate_lookup = json.load(f)  # Direct dictionary: {"2020": 0.74517, ...}
         
-        # Create copy of original data for conversion
-        converted_data = json_data.copy()
+        # Create deep copy of original data for conversion
+        converted_data = copy.deepcopy(json_data)
         exchange_rates_used = {}
         
         # Financial metrics to convert
@@ -473,6 +474,18 @@ def main():
                                 # Store original data in session state
                                 st.session_state.original_financial_data = financial_data
                                 
+                                # Save raw data to JSON file (Step 1)
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                raw_data_filename = f"raw_data_{timestamp}.json"
+                                raw_data_path = Path(".tmp") / raw_data_filename
+                                
+                                try:
+                                    with open(raw_data_path, 'w') as f:
+                                        json.dump(financial_data, f, indent=2)
+                                    st.info(f"📄 Raw data saved to: {raw_data_filename}")
+                                except Exception as exc:
+                                    st.warning(f"⚠️ Could not save raw data file: {exc}")
+                                
                                 # Company name validation
                                 company = financial_data.get("company_name", "")
                                 if company and company_hint and company_hint.lower() in company.lower():
@@ -503,6 +516,19 @@ def main():
                                 else:
                                     st.session_state.conversion_results = conversion_result
                                     st.session_state.show_conversion = True
+                                    
+                                    # Save converted data to JSON file (Step 2)
+                                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                    converted_data_filename = f"usd_converted_data_{timestamp}.json"
+                                    converted_data_path = Path(".tmp") / converted_data_filename
+                                    
+                                    try:
+                                        with open(converted_data_path, 'w') as f:
+                                            json.dump(conversion_result, f, indent=2)
+                                        st.info(f"💱 Converted data saved to: {converted_data_filename}")
+                                    except Exception as exc:
+                                        st.warning(f"⚠️ Could not save converted data file: {exc}")
+                                    
                                     st.rerun()  # Force refresh to show results
                         
                         # Display conversion results if available
