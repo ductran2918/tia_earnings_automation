@@ -66,7 +66,14 @@ FIREBASE_CREDENTIALS_PATH=path_to_firebase_service_account.json
 
 ### Running the Application
 ```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run the main application
 streamlit run app/main.py
+
+# Alternative: Run with specific port
+streamlit run app/main.py --server.port 8501
 ```
 
 ### Firebase Setup
