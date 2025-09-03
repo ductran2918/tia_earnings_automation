@@ -477,43 +477,46 @@ def main():
                                 company = financial_data.get("company_name", "")
                                 if company and company_hint and company_hint.lower() in company.lower():
                                     st.success("✅ Company name matches your hint")
-                                
-                                # Display JSON output
-                                st.subheader("📊 Extracted Financial Data")
-                                st.json(financial_data)
-                                
-                                # Currency Conversion Feature
-                                if detect_sgd_currency(financial_data):
-                                    st.divider()
-                                    
-                                    # Show conversion button
-                                    if st.button("💱 Convert to USD", type="primary"):
-                                        with st.spinner("Converting SGD to USD..."):
-                                            conversion_result = convert_sgd_to_usd(financial_data)
-                                            
-                                            if "error" in conversion_result:
-                                                st.error(f"❌ {conversion_result['error']}")
-                                            else:
-                                                st.session_state.conversion_results = conversion_result
-                                                st.session_state.show_conversion = True
-                                    
-                                    # Display conversion results if available
-                                    if st.session_state.show_conversion and st.session_state.conversion_results:
-                                        st.subheader("💱 Currency Conversion (SGD → USD)")
-                                        
-                                        # Display exchange rates used
-                                        rates = st.session_state.conversion_results.get('exchange_rates_used', {})
-                                        if rates:
-                                            rate_display = ", ".join([f"{year}: {rate}" for year, rate in rates.items()])
-                                            st.info(f"**Exchange Rates Used:** {rate_display}")
-                                        
-                                        # Display converted JSON
-                                        st.json(st.session_state.conversion_results)
                             
                             else:
                                 st.error(f"❌ {financial_data['error']}")
                         else:
                             st.error("❌ Failed to extract text from PDF")
+                
+                # Display extracted data if available in session state (persistent across button clicks)
+                if st.session_state.original_financial_data:
+                    st.divider()
+                    st.subheader("📊 Extracted Financial Data")
+                    st.json(st.session_state.original_financial_data)
+                    
+                    # Currency Conversion Feature
+                    if detect_sgd_currency(st.session_state.original_financial_data):
+                        st.divider()
+                        
+                        # Show conversion button
+                        if st.button("💱 Convert to USD", type="primary"):
+                            with st.spinner("Converting SGD to USD..."):
+                                conversion_result = convert_sgd_to_usd(st.session_state.original_financial_data)
+                                
+                                if "error" in conversion_result:
+                                    st.error(f"❌ {conversion_result['error']}")
+                                else:
+                                    st.session_state.conversion_results = conversion_result
+                                    st.session_state.show_conversion = True
+                                    st.rerun()  # Force refresh to show results
+                        
+                        # Display conversion results if available
+                        if st.session_state.show_conversion and st.session_state.conversion_results:
+                            st.subheader("💱 Currency Conversion (SGD → USD)")
+                            
+                            # Display exchange rates used
+                            rates = st.session_state.conversion_results.get('exchange_rates_used', {})
+                            if rates:
+                                rate_display = ", ".join([f"{year}: {rate}" for year, rate in rates.items()])
+                                st.info(f"**Exchange Rates Used:** {rate_display}")
+                            
+                            # Display converted JSON
+                            st.json(st.session_state.conversion_results)
                 
                 # Status box with temp file path
                 st.subheader("Status")
