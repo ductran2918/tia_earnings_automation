@@ -238,16 +238,16 @@ def detect_sgd_currency(financial_data: Dict) -> bool:
 
 
 def convert_sgd_to_usd(json_data: Dict) -> Dict:
-    """Convert SGD financial data to USD using exchange rates from CSV file."""
+    """Convert SGD financial data to USD using exchange rates from JSON file."""
     try:
-        # Load exchange rate CSV
-        csv_path = "sgd_usd_rate.csv"
-        if not os.path.exists(csv_path):
-            return {"error": "Exchange rate file not found"}
+        # Load exchange rate JSON file
+        json_path = "sgd_usd_rates_json.json"
+        if not os.path.exists(json_path):
+            return {"error": "Exchange rate JSON file not found"}
         
-        # Read CSV and create year-to-rate lookup
-        df = pd.read_csv(csv_path)
-        rate_lookup = dict(zip(df['year'].astype(str), df['sgd_usd_avg']))
+        # Read JSON and use direct lookup
+        with open(json_path, 'r') as f:
+            rate_lookup = json.load(f)  # Direct dictionary: {"2020": 0.74517, ...}
         
         # Create copy of original data for conversion
         converted_data = json_data.copy()
@@ -267,7 +267,7 @@ def convert_sgd_to_usd(json_data: Dict) -> Dict:
                 year = str(year_data.get('year', ''))
                 
                 if year in rate_lookup:
-                    exchange_rate = rate_lookup[year]
+                    exchange_rate = rate_lookup[year]  # Direct dictionary access
                     exchange_rates_used[year] = exchange_rate
                     
                     # Convert each financial metric
