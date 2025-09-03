@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Dict
 import os
 import json
+import pandas as pd
 import google.generativeai as genai
 from dotenv import load_dotenv
 import firebase_admin
@@ -223,6 +224,75 @@ def initialize_firebase():
         return None
 
 
+def detect_sgd_currency(financial_data: Dict) -> bool:
+    """Check if the financial data contains SGD currency indicators."""
+    currencies = financial_data.get("currencies", [])
+    sgd_indicators = ["S$", "SGD", "SGD$"]
+    
+    # Check if any currency contains SGD indicators (case-insensitive)
+    for currency in currencies:
+        for indicator in sgd_indicators:
+            if indicator.lower() in str(currency).lower():
+                return True
+    return False
+
+
+def convert_sgd_to_usd(json_data: Dict) -> Dict:
+    """Convert SGD financial data to USD using exchange rates from CSV file."""
+    try:
+        # Load exchange rate CSV
+        csv_path = "sgd_usd_rate.csv"
+        if not os.path.exists(csv_path):
+            return {"error": "Exchange rate file not found"}
+        
+        # Read CSV and create year-to-rate lookup
+        df = pd.read_csv(csv_path)
+        rate_lookup = dict(zip(df['year'].astype(str), df['sgd_usd_avg']))
+        
+        # Create copy of original data for conversion
+        converted_data = json_data.copy()
+        exchange_rates_used = {}
+        
+        # Financial metrics to convert
+        financial_metrics = [
+            'revenue', 'profit_before_tax', 'profit_after_tax',
+            'net_cash_operating', 'net_cash_investing', 'net_cash_financing',
+            'cash_end_of_year'
+        ]
+        
+        # Convert data for each year
+        for year_key in ['year_1', 'year_2']:
+            if year_key in converted_data and converted_data[year_key]:
+                year_data = converted_data[year_key]
+                year = str(year_data.get('year', ''))
+                
+                if year in rate_lookup:
+                    exchange_rate = rate_lookup[year]
+                    exchange_rates_used[year] = exchange_rate
+                    
+                    # Convert each financial metric
+                    for metric in financial_metrics:
+                        if metric in year_data and year_data[metric] is not None:
+                            try:
+                                original_value = float(year_data[metric])
+                                converted_value = original_value * exchange_rate
+                                year_data[metric] = round(converted_value, 0)  # Round to whole number
+                            except (ValueError, TypeError):
+                                continue  # Keep original value if conversion fails
+                else:
+                    return {"error": f"Exchange rate not found for year {year}"}
+        
+        # Update currency information
+        converted_data['original_currencies'] = converted_data.get('currencies', [])
+        converted_data['currencies'] = ['USD']
+        converted_data['exchange_rates_used'] = exchange_rates_used
+        
+        return converted_data
+        
+    except Exception as exc:
+        return {"error": f"Currency conversion failed: {exc}"}
+
+
 def main():
     # Load environment variables
     load_dotenv()
@@ -293,6 +363,12 @@ def main():
         st.session_state.uploaded_file_info = None
     if 'temp_file_path' not in st.session_state:
         st.session_state.temp_file_path = None
+    if 'conversion_results' not in st.session_state:
+        st.session_state.conversion_results = None
+    if 'show_conversion' not in st.session_state:
+        st.session_state.show_conversion = False
+    if 'original_financial_data' not in st.session_state:
+        st.session_state.original_financial_data = None
     
     # Create two columns
     col1, col2 = st.columns([1, 1])
@@ -312,6 +388,9 @@ def main():
         if st.button("Clear", type="secondary"):
             st.session_state.uploaded_file_info = None
             st.session_state.temp_file_path = None
+            st.session_state.conversion_results = None
+            st.session_state.show_conversion = False
+            st.session_state.original_financial_data = None
             # Clean up temp file if it exists
             if st.session_state.temp_file_path and Path(st.session_state.temp_file_path).exists():
                 try:
@@ -391,6 +470,9 @@ def main():
                             if "error" not in financial_data:
                                 st.success("✅ Financial data extracted successfully!")
                                 
+                                # Store original data in session state
+                                st.session_state.original_financial_data = financial_data
+                                
                                 # Company name validation
                                 company = financial_data.get("company_name", "")
                                 if company and company_hint and company_hint.lower() in company.lower():
@@ -399,6 +481,34 @@ def main():
                                 # Display JSON output
                                 st.subheader("📊 Extracted Financial Data")
                                 st.json(financial_data)
+                                
+                                # Currency Conversion Feature
+                                if detect_sgd_currency(financial_data):
+                                    st.divider()
+                                    
+                                    # Show conversion button
+                                    if st.button("💱 Convert to USD", type="primary"):
+                                        with st.spinner("Converting SGD to USD..."):
+                                            conversion_result = convert_sgd_to_usd(financial_data)
+                                            
+                                            if "error" in conversion_result:
+                                                st.error(f"❌ {conversion_result['error']}")
+                                            else:
+                                                st.session_state.conversion_results = conversion_result
+                                                st.session_state.show_conversion = True
+                                    
+                                    # Display conversion results if available
+                                    if st.session_state.show_conversion and st.session_state.conversion_results:
+                                        st.subheader("💱 Currency Conversion (SGD → USD)")
+                                        
+                                        # Display exchange rates used
+                                        rates = st.session_state.conversion_results.get('exchange_rates_used', {})
+                                        if rates:
+                                            rate_display = ", ".join([f"{year}: {rate}" for year, rate in rates.items()])
+                                            st.info(f"**Exchange Rates Used:** {rate_display}")
+                                        
+                                        # Display converted JSON
+                                        st.json(st.session_state.conversion_results)
                             
                             else:
                                 st.error(f"❌ {financial_data['error']}")
