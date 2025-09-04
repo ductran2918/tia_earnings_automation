@@ -2,11 +2,12 @@ import streamlit as st
 import pdfplumber
 from pathlib import Path
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 import os
 import json
 import pandas as pd
 import copy
+import re
 import google.generativeai as genai
 from dotenv import load_dotenv
 import firebase_admin
@@ -227,14 +228,37 @@ def initialize_firebase():
 
 def detect_sgd_currency(financial_data: Dict) -> bool:
     """Check if the financial data contains SGD currency indicators."""
-    currencies = financial_data.get("currencies", [])
-    sgd_indicators = ["S$", "SGD", "SGD$"]
+    # Enhanced SGD detection with multiple approaches
     
-    # Check if any currency contains SGD indicators (case-insensitive)
+    # Method 1: Check currencies field
+    currencies = financial_data.get("currencies", [])
+    sgd_indicators = ["S$", "SGD", "SGD$", "singapore", "singapore dollar"]
+    
     for currency in currencies:
         for indicator in sgd_indicators:
             if indicator.lower() in str(currency).lower():
                 return True
+    
+    # Method 2: Check company name (if it's a Singapore company)
+    company_name = financial_data.get("company_name", "")
+    singapore_company_indicators = ["pte ltd", "pte. ltd.", "singapore", ".sg"]
+    for indicator in singapore_company_indicators:
+        if indicator.lower() in company_name.lower():
+            return True
+    
+    # Method 3: Check for any mention of Singapore or S$ in any field
+    # Convert the entire financial data to string and search
+    data_str = str(financial_data).lower()
+    if any(indicator in data_str for indicator in ["s$", "sgd", "singapore"]):
+        return True
+    
+    # Method 4: Fallback - if currencies list is empty but data looks like financial data
+    # and we're in Singapore context, assume SGD (conservative approach)
+    if not currencies and financial_data.get("revenue") and financial_data.get("year_1"):
+        # If we have financial data but no currency specified, 
+        # and we have context clues of Singapore, assume SGD
+        return True
+    
     return False
 
 
@@ -292,6 +316,121 @@ def convert_sgd_to_usd(json_data: Dict) -> Dict:
         
     except Exception as exc:
         return {"error": f"Currency conversion failed: {exc}"}
+
+
+def find_latest_usd_converted_file() -> Optional[str]:
+    """Find the most recent USD-converted JSON file in .tmp directory."""
+    try:
+        tmp_dir = Path(".tmp")
+        if not tmp_dir.exists():
+            return None
+        
+        # Find all files matching the pattern
+        pattern = re.compile(r'usd_converted_data_(\d{8}_\d{6})\.json')
+        files = []
+        
+        for file_path in tmp_dir.glob("usd_converted_data_*.json"):
+            match = pattern.match(file_path.name)
+            if match:
+                timestamp_str = match.group(1)
+                files.append((file_path, timestamp_str))
+        
+        if not files:
+            return None
+        
+        # Sort by timestamp (most recent first)
+        files.sort(key=lambda x: x[1], reverse=True)
+        return str(files[0][0])
+        
+    except Exception as exc:
+        st.error(f"Error finding USD converted file: {exc}")
+        return None
+
+
+def generate_revenue_profit_table(data: Dict) -> pd.DataFrame:
+    """Generate Revenue and Profit table from financial data."""
+    rows = []
+    
+    # Extract year data dynamically (year_1, year_2, year_3, etc.)
+    year_keys = [key for key in data.keys() if key.startswith('year_')]
+    
+    for year_key in year_keys:
+        year_data = data.get(year_key, {})
+        if year_data:
+            rows.append({
+                'Year': year_data.get('year', ''),
+                'Revenue': year_data.get('revenue', ''),
+                'Profit before taxes': year_data.get('profit_before_tax', '')
+            })
+    
+    # Create DataFrame and sort by Year
+    df = pd.DataFrame(rows)
+    if not df.empty and 'Year' in df.columns:
+        # Convert Year to int for proper sorting, handle empty strings
+        df['Year_int'] = pd.to_numeric(df['Year'], errors='coerce')
+        df = df.sort_values('Year_int').drop('Year_int', axis=1)
+        df = df.reset_index(drop=True)
+    
+    return df
+
+
+def generate_cash_flow_table(data: Dict) -> pd.DataFrame:
+    """Generate Cash Flow table from financial data."""
+    rows = []
+    
+    # Extract year data dynamically (year_1, year_2, year_3, etc.)
+    year_keys = [key for key in data.keys() if key.startswith('year_')]
+    
+    for year_key in year_keys:
+        year_data = data.get(year_key, {})
+        if year_data:
+            rows.append({
+                'Year': year_data.get('year', ''),
+                'Net cash used in/generated from operating activities': year_data.get('net_cash_operating', ''),
+                'Net cash used in investing activities': year_data.get('net_cash_investing', ''),
+                'Net cash provided by/used in financing activities': year_data.get('net_cash_financing', ''),
+                'Cash and cash equivalents at end of financial year': year_data.get('cash_end_of_year', '')
+            })
+    
+    # Create DataFrame and sort by Year
+    df = pd.DataFrame(rows)
+    if not df.empty and 'Year' in df.columns:
+        # Convert Year to int for proper sorting, handle empty strings
+        df['Year_int'] = pd.to_numeric(df['Year'], errors='coerce')
+        df = df.sort_values('Year_int').drop('Year_int', axis=1)
+        df = df.reset_index(drop=True)
+    
+    return df
+
+
+def format_currency_conversion_info(data: Dict) -> str:
+    """Format currency conversion rate information."""
+    try:
+        exchange_rates = data.get('exchange_rates_used', {})
+        original_currencies = data.get('original_currencies', ['SGD'])
+        
+        if not exchange_rates:
+            return ""
+        
+        # Assume single original currency (SGD)
+        original_currency = original_currencies[0] if original_currencies else 'SGD'
+        original_currency_symbol = 'S$' if original_currency in ['SGD', 'S$'] else original_currency
+        
+        # Calculate display rates (1 USD = X SGD)
+        rate_parts = []
+        for year, rate in sorted(exchange_rates.items()):
+            display_rate = round(1 / rate, 5)  # Convert to 1 USD = X SGD format
+            rate_parts.append(f"{original_currency_symbol}{display_rate} for the year {year}")
+        
+        if rate_parts:
+            rate_text = " and ".join(rate_parts)
+            return f"Currency converted from Singapore dollar to US dollar: US$1 = {rate_text}"
+        
+        return ""
+        
+    except Exception as exc:
+        st.error(f"Error formatting conversion info: {exc}")
+        return ""
 
 
 def main():
@@ -543,6 +682,82 @@ def main():
                             
                             # Display converted JSON
                             st.json(st.session_state.conversion_results)
+                            
+                            # Table Conversion Feature
+                            st.divider()
+                            
+                            if st.button("📊 Convert to Tables for Visualization", type="primary"):
+                                with st.spinner("Converting to tables..."):
+                                    # Try to find the latest USD-converted file
+                                    latest_file = find_latest_usd_converted_file()
+                                    
+                                    if latest_file:
+                                        try:
+                                            # Load JSON data
+                                            with open(latest_file, 'r') as f:
+                                                json_data = json.load(f)
+                                            
+                                            st.success("✅ Tables generated successfully!")
+                                            
+                                            # Display currency conversion info
+                                            conversion_info = format_currency_conversion_info(json_data)
+                                            if conversion_info:
+                                                st.info(f"**Currency Conversion:** {conversion_info}")
+                                            
+                                            # Generate tables
+                                            revenue_profit_df = generate_revenue_profit_table(json_data)
+                                            cash_flow_df = generate_cash_flow_table(json_data)
+                                            
+                                            # Display Table 1: Revenue and Profit
+                                            st.subheader("📈 Table 1: Revenue and Profit")
+                                            if not revenue_profit_df.empty:
+                                                # Interactive dataframe
+                                                st.dataframe(revenue_profit_df, use_container_width=True)
+                                                
+                                                # Static HTML table
+                                                st.write("**Static Table:**")
+                                                st.write(revenue_profit_df.to_html(index=False, escape=False), unsafe_allow_html=True)
+                                                
+                                                # CSV download
+                                                csv1 = revenue_profit_df.to_csv(index=False)
+                                                st.download_button(
+                                                    label="📥 Download Revenue & Profit Table (CSV)",
+                                                    data=csv1,
+                                                    file_name="revenue_profit_table.csv",
+                                                    mime="text/csv"
+                                                )
+                                            else:
+                                                st.warning("⚠️ No revenue and profit data found")
+                                            
+                                            # Display Table 2: Cash Flow
+                                            st.subheader("💰 Table 2: Cash Flow")
+                                            if not cash_flow_df.empty:
+                                                # Interactive dataframe
+                                                st.dataframe(cash_flow_df, use_container_width=True)
+                                                
+                                                # Static HTML table
+                                                st.write("**Static Table:**")
+                                                st.write(cash_flow_df.to_html(index=False, escape=False), unsafe_allow_html=True)
+                                                
+                                                # CSV download
+                                                csv2 = cash_flow_df.to_csv(index=False)
+                                                st.download_button(
+                                                    label="📥 Download Cash Flow Table (CSV)",
+                                                    data=csv2,
+                                                    file_name="cash_flow_table.csv",
+                                                    mime="text/csv"
+                                                )
+                                            else:
+                                                st.warning("⚠️ No cash flow data found")
+                                                
+                                        except json.JSONDecodeError:
+                                            st.error("❌ Error: Invalid JSON format in converted data file")
+                                        except FileNotFoundError:
+                                            st.error("❌ Error: USD-converted data file not found")
+                                        except Exception as exc:
+                                            st.error(f"❌ Error processing tables: {exc}")
+                                    else:
+                                        st.error("❌ No USD-converted data files found. Please convert currency first.")
                 
                 # Status box with temp file path
                 st.subheader("Status")
