@@ -5,6 +5,7 @@ cffi==1.17.1
 charset-normalizer==3.4.3
 cryptography==45.0.6
 et_xmlfile==2.0.0
+firebase-admin==6.5.0
 google-ai-generativelanguage==0.6.15
 google-api-core==2.25.1
 google-api-python-client==2.179.0
