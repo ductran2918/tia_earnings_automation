@@ -13,35 +13,42 @@ from config import AUTH_QUESTION, AUTH_ERROR_MESSAGE, USER_VERIFY_FILE
 
 
 def load_user_verification_data() -> dict:
-    """Load user verification data from JSON file.
+    """Load user verification data from Streamlit secrets.
+
+    Priority:
+    1. Try loading from Streamlit secrets (for deployment)
+    2. Fallback to JSON file (for backward compatibility)
 
     Returns:
         Dictionary mapping answer (food) to user name.
         Example: {"sushi": "Terence", "adobo": "Miguel", "pho": "Duc"}
-        Returns empty dict if file not found or parsing fails.
+        Returns empty dict if neither source is available.
     """
     try:
-        # Get path to user verification file in project root
-        # Path(__file__) = app/authentication.py
-        # parent.parent = project root
+        # Try loading from Streamlit secrets first (for deployment)
+        if "auth" in st.secrets:
+            # Convert secrets to dictionary
+            user_data = dict(st.secrets["auth"])
+            return user_data
+    except Exception:
+        # Secrets not available, try JSON file fallback
+        pass
+
+    # Fallback: Try loading from JSON file (for local development)
+    try:
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         json_path = os.path.join(project_root, USER_VERIFY_FILE)
 
-        if not os.path.exists(json_path):
-            st.error(f"User verification file not found: {json_path}")
-            return {}
+        if os.path.exists(json_path):
+            with open(json_path, "r", encoding="utf-8") as f:
+                user_data = json.load(f)
+            return user_data
+    except Exception:
+        pass
 
-        with open(json_path, "r", encoding="utf-8") as f:
-            user_data = json.load(f)
-
-        return user_data
-
-    except json.JSONDecodeError as exc:
-        st.error(f"Invalid JSON in user verification file: {exc}")
-        return {}
-    except Exception as exc:
-        st.error(f"Failed to load user verification data: {exc}")
-        return {}
+    # If both methods fail, show error and return empty dict
+    st.error("Authentication configuration not found. Please configure secrets or user verification file.")
+    return {}
 
 
 def verify_user_answer(answer: str, user_data: dict) -> Tuple[bool, Optional[str]]:
