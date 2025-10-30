@@ -3,8 +3,11 @@ __pycache__/
 *.py[codz]
 *$py.class
 
-# Add this line to your .gitignore file
+# JSON files - ignore all by default, except required app data files
 *.json
+!public_companies_list.json
+!sgd_usd_rates_json.json
+# Keep user_verify_question.json private (authentication data)
 
 # C extensions
 *.so
