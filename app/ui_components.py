@@ -26,8 +26,24 @@ from company_extractors import get_extractor_config, get_extraction_function
 
 
 def check_api_key() -> bool:
-    """Verify OpenRouter API key is configured."""
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+    """Verify OpenRouter API key is configured.
+
+    Checks both Streamlit secrets (for Streamlit Cloud) and environment variables
+    (for local development) to ensure the API key is available.
+    """
+    openrouter_api_key = None
+
+    # Try loading from Streamlit secrets first (for Streamlit Cloud)
+    try:
+        if "OPENROUTER_API_KEY" in st.secrets:
+            openrouter_api_key = st.secrets["OPENROUTER_API_KEY"]
+    except Exception:
+        pass
+
+    # Fallback to environment variable (for local development)
+    if not openrouter_api_key:
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+
     if not openrouter_api_key:
         st.error(
             "System configuration error: OpenRouter API key not found. "
