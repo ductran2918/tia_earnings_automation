@@ -9,7 +9,7 @@ from typing import Dict
 
 import streamlit as st
 
-from client import client
+from client import get_client
 
 
 # Grab-specific prompt path
@@ -128,7 +128,8 @@ PDF Text:
             "extracting Grab Holdings Limited financial metrics from earnings reports."
         )
 
-        # Call OpenRouter API
+        # Get client and call OpenRouter API
+        client = get_client()
         response = client.chat.completions.create(
             model=model_name,
             messages=[
