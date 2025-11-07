@@ -69,6 +69,35 @@ def render_grab_ui(company_slug: str, company_name: str) -> None:
         render_push_to_database_section(company_slug)
 
 
+def render_sea_group_ui(company_slug: str, company_name: str) -> None:
+    """Render Sea Group-specific extraction UI with database push functionality.
+
+    Args:
+        company_slug: Company slug ("sea-group-garena")
+        company_name: Company display name ("Sea Group")
+    """
+    # Get Sea Group-specific configuration
+    config = get_extractor_config(company_slug)
+    if not config:
+        st.error(f"Configuration not found for {company_name}")
+        return
+
+    # Render PDF uploader with Sea Group-specific button label
+    render_file_uploader(
+        company_hint=company_name,
+        company_slug=company_slug,
+        button_label=config["button_label"]  # "Extract Sea Group's metrics"
+    )
+
+    # Render results (JSON display)
+    render_public_company_results()
+
+    # Render database push section (only if extraction succeeded and database is ready)
+    extracted_data = st.session_state.get("extracted_data")
+    if extracted_data and "error" not in extracted_data and config.get("has_database_push"):
+        render_push_to_database_section(company_slug)
+
+
 def render_coming_soon_ui(company_name: str) -> None:
     """Render placeholder UI for companies not yet implemented.
 
@@ -122,9 +151,9 @@ def render_public_company_page() -> None:
             # Company has full implementation - render company-specific UI
             if company_slug == "grab-com":
                 render_grab_ui(company_slug, selected_company)
+            elif company_slug == "sea-group-garena":
+                render_sea_group_ui(company_slug, selected_company)
             # Add other implemented companies here as elif blocks
-            # elif company_slug == "sea-group-garena":
-            #     render_sea_ui(company_slug, selected_company)
         else:
             # Company not yet implemented - show coming soon message
             render_coming_soon_ui(selected_company)

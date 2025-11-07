@@ -231,9 +231,8 @@ def render_push_to_database_section(company_slug: str) -> None:
     Shows duplicate warning if data exists, and "Push to Supabase" button.
 
     Args:
-        company_slug: Company identifier (e.g., "grab-com")
+        company_slug: Company identifier (e.g., "grab-com", "sea-group-garena")
     """
-    from database import push_grab_to_supabase, check_duplicate_grab
     from supabase_client import supabase
 
     # Check if extracted data exists
@@ -249,10 +248,23 @@ def render_push_to_database_section(company_slug: str) -> None:
     st.divider()
     st.subheader("Push to Database")
 
+    # Dynamic imports based on company_slug
+    if company_slug == "grab-com":
+        from database import push_grab_to_supabase, check_duplicate_grab
+        push_func = push_grab_to_supabase
+        check_func = check_duplicate_grab
+    elif company_slug == "sea-group-garena":
+        from database import push_sea_group_to_supabase, check_duplicate_sea_group
+        push_func = push_sea_group_to_supabase
+        check_func = check_duplicate_sea_group
+    else:
+        # Unknown company - should not reach here
+        return
+
     # Check for existing data (duplicate detection)
     date = extracted_data.get("date")
     if date:
-        existing = check_duplicate_grab(company_slug, date)
+        existing = check_func(company_slug, date)
         if existing:
             st.warning(
                 f"⚠️ Data already exists for {company_slug} on {date}. "
@@ -260,10 +272,10 @@ def render_push_to_database_section(company_slug: str) -> None:
             )
 
     # Push button
-    # Use unique key to prevent Streamlit widget ID conflicts
-    if st.button("Push to Supabase", type="primary", key="push_to_supabase_btn"):
+    # Use unique key per company to prevent Streamlit widget ID conflicts
+    if st.button("Push to Supabase", type="primary", key=f"push_to_supabase_btn_{company_slug}"):
         with st.spinner("Pushing data to database..."):
-            result = push_grab_to_supabase(extracted_data)
+            result = push_func(extracted_data)
 
         # Display result
         if result["success"]:
