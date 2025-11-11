@@ -26,6 +26,22 @@ Return **one valid JSON object** for **Sea Group** that matches the schema below
 - Do **not** round or estimate; copy the reported figure (after normalization).
 - If a value is **not found**, output `null` (do **not** invent).
 
+# Sign conventions for costs and expenses
+- All **cost and expense** metrics must be **negative numbers**:
+  - Cost of revenue, sales and marketing expenses, general and admin expenses, R&D expenses should be negative.
+  - If the statement shows `$100 million` for "Cost of revenue", output `-100`.
+  - If shown as `(100)` (already in parentheses indicating expense), output `-100`.
+- **Revenue, profit, EBITDA, cash, assets, and user metrics** remain positive (or negative only if explicitly shown as losses).
+- Applies to these fields:
+  - `group_total_cost_of_revenue`
+  - `group_sales_and_marketing_expenses`
+  - `group_general_and_admin_expenses`
+  - `group_r_and_d_expenses`
+  - `de_cost_of_service`
+  - `de_sales_and_marketing_expenses`
+  - `ecom_sales_and_marketing_expenses`
+  - `dfs_sales_and_marketing_expenses`
+
 # Matching rules for pdfplumber text
 - Prefer numbers **on the same line** as the label; if not found, scan the **next few lines** for a numeric aligned to that label context.
 - If both **components** and a **total** exist (e.g., multiple revenue streams and a Total revenue), **use the total**.
