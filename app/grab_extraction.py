@@ -36,7 +36,7 @@ def _load_grab_prompt() -> str:
 def _parse_grab_json_response(json_text: str) -> Dict:
     """Parse JSON response from LLM for Grab extraction.
 
-    Handles common LLM response formatting issues (markdown blocks, extra text).
+    Handles common LLM response formatting issues (markdown blocks, extra text, NULL vs null).
 
     Args:
         json_text: Raw text response from LLM
@@ -52,6 +52,11 @@ def _parse_grab_json_response(json_text: str) -> Dict:
         cleaned = cleaned[3:].strip()
     if cleaned.endswith('```'):
         cleaned = cleaned[:-3].strip()
+
+    # Replace uppercase NULL with lowercase null for JSON compatibility
+    # Use word boundary replacement to avoid replacing NULL inside strings
+    import re
+    cleaned = re.sub(r'\bNULL\b', 'null', cleaned)
 
     try:
         # Try parsing directly
