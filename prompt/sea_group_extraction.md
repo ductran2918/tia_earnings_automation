@@ -49,6 +49,13 @@ Return **one valid JSON object** for **Sea Group** that matches the schema below
 - Business unit alternative names: "Garena" for Digital Entertainment, "Shopee" for E-commerce, "SeaMoney" for Digital Financial Services.
 - Ignore YoY %, QoQ %, and narrative growth claims; this extractor captures **absolute values only**.
 
+# JSON output format (CRITICAL)
+- Return **valid JSON only** - no markdown, no code blocks, no commentary
+- Use **lowercase `null`** (not `NULL`, not `Null`)
+- Include **commas** between all key-value pairs
+- Use **double quotes** for all keys and string values
+- Ensure the JSON is parseable by standard JSON parsers
+
 # Schema (fixed; keep key order; unknowns as null)
 Return exactly this JSON (no extra keys, no commentary):
 
