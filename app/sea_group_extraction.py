@@ -60,10 +60,16 @@ def _parse_sea_group_json_response(json_text: str) -> Dict:
     if cleaned.endswith('```'):
         cleaned = cleaned[:-3].strip()
 
-    # Replace uppercase NULL with lowercase null for JSON compatibility
-    # Use word boundary replacement to avoid replacing NULL inside strings
+    # Fix common LLM JSON formatting issues
     import re
+
+    # Replace uppercase NULL with lowercase null for JSON compatibility
     cleaned = re.sub(r'\bNULL\b', 'null', cleaned)
+
+    # Add missing commas between key-value pairs
+    # Pattern: "value"\n"key" should become "value",\n"key"
+    # This handles both null and numeric values followed by newline and next key
+    cleaned = re.sub(r'(null|true|false|"[^"]*"|\d+\.?\d*)\s*\n\s*"', r'\1,\n"', cleaned)
 
     try:
         # Try parsing directly
