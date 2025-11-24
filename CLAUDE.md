@@ -34,9 +34,11 @@ This is a Python-based earnings automation tool built for **Tech in Asia's edito
 **Company-Specific Extraction Modules**
 - **Grab Extraction (`app/grab_extraction.py` - 163 lines)**: Extracts 23 Grab-specific metrics across Deliveries, Mobility, and Financial Services segments
 - **Sea Group Extraction (`app/sea_group_extraction.py` - 177 lines)**: Extracts 41 Sea Group-specific metrics across Digital Entertainment/Garena, E-commerce/Shopee, and Digital Financial Services/SeaMoney segments
-- Both modules follow identical architecture pattern with lazy client initialization
+- **Alibaba Group Extraction (`app/alibaba_extraction.py` - 210 lines)**: Extracts 36 Alibaba-specific metrics across consolidated financials and 7 business segments (Taobao/Tmall, International, Cainiao, Cloud Intelligence, Local Services, Digital Media & Entertainment, All Others)
+- All modules follow identical architecture pattern with lazy client initialization
 - Company-specific prompts loaded from `prompt/` directory
-- Robust JSON parsing with markdown block handling and bracket-matching fallback
+- Robust JSON parsing with markdown block handling, NULL→null conversion, and missing comma insertion
+- Bracket-matching fallback extraction for malformed JSON
 
 **Key Functions Implemented:**
 - `save_temp_file()`: Timestamp-based temporary file storage in `.tmp/` directory
@@ -47,6 +49,7 @@ This is a Python-based earnings automation tool built for **Tech in Asia's edito
 - `extract_public_company_data_with_llm()`: Public company name extraction from PDFs
 - **`extract_grab_data_with_llm()`**: Grab-specific financial data extraction (23 metrics)
 - **`extract_sea_group_data_with_llm()`**: Sea Group-specific financial data extraction (41 metrics)
+- **`extract_alibaba_data_with_llm()`**: Alibaba Group-specific financial data extraction (36 metrics)
 - `format_file_size()`: Human-readable file size formatting
 - **`get_client()`**: Lazy-loaded OpenAI client with caching (app/client.py)
 - **`initialize_firebase()`**: Firebase Admin SDK initialization with error handling
@@ -56,10 +59,11 @@ This is a Python-based earnings automation tool built for **Tech in Asia's edito
 - **Generic Extraction**: Revenue and net profit extraction with evidence text
 - **Grab-Specific**: 23 metrics including GMV, incentives, user metrics (MTU), segment financials for Deliveries, Mobility, and Financial Services
 - **Sea Group-Specific**: 41 metrics including group financials, Digital Entertainment/Garena metrics (bookings, users, ARPU), E-commerce/Shopee metrics (marketplace revenue, VAS), and Digital Financial Services/SeaMoney metrics
+- **Alibaba Group-Specific**: 36 metrics including consolidated financials (revenue, profit, expenses, cash, assets), segment revenue and adjusted EBITDA for 7 business units (Taobao/Tmall, International Digital Commerce, Cainiao Logistics, Cloud Intelligence, Local Services, Digital Media & Entertainment, All Others), balance sheet data, cash flow statements, and employee count. Extracts USD values only (not RMB).
 - Company name and report type identification
-- Period detection and currency preservation (no conversion)
+- Period detection and currency preservation (no conversion, except Alibaba which converts RMB to USD per prompt instructions)
 - Structured JSON output with validation
-- Evidence text showing exact source quotes from PDF
+- Evidence text showing exact source quotes from PDF (for generic extraction)
 - Company slug validation and auto-correction
 
 ## Development Setup
@@ -144,13 +148,18 @@ streamlit run app/main.py --server.port 8501
 │   ├── extract_data.py                                  # Generic financial data extraction functions
 │   ├── grab_extraction.py                               # Grab-specific extraction logic (163 lines)
 │   ├── sea_group_extraction.py                          # Sea Group-specific extraction logic (177 lines)
+│   ├── alibaba_extraction.py                            # Alibaba Group-specific extraction logic (210 lines)
 │   ├── company_extractors.py                            # Company extractor registry and configuration
-│   ├── public_company_ui.py                             # Public company UI rendering (Grab, Sea Group)
+│   ├── public_company_ui.py                             # Public company UI rendering (Grab, Sea Group, Alibaba)
 │   ├── authentication.py                                # Firebase authentication (lazy pattern)
-│   └── public_company_extraction.py                     # Public company name extraction
+│   ├── public_company_extraction.py                     # Public company name extraction
+│   ├── database.py                                      # Supabase database operations (push, duplicate check, retrieval)
+│   ├── supabase_client.py                               # Supabase client singleton
+│   └── ui_components.py                                 # Shared UI components (file uploader, results display, database push)
 ├── prompt/
 │   ├── grab_com_extraction.md                           # Grab extraction prompt (23 metrics)
-│   └── sea_group_extraction.md                          # Sea Group extraction prompt (41 metrics)
+│   ├── sea_group_extraction.md                          # Sea Group extraction prompt (41 metrics)
+│   └── alibaba_group_extraction.md                      # Alibaba Group extraction prompt (36 metrics)
 ├── .tmp/                                                # Temporary PDF storage (auto-created)
 ├── .venv/                                               # Python virtual environment
 ├── .claude/                                             # Claude Code configuration
@@ -231,6 +240,7 @@ All extraction functions now call `get_client()` instead of importing a module-l
 - [app/extract_data.py](app/extract_data.py): `extract_financial_data_with_llm()`, `extract_public_company_data_with_llm()`
 - [app/grab_extraction.py](app/grab_extraction.py): `extract_grab_data_with_llm()`
 - [app/sea_group_extraction.py](app/sea_group_extraction.py): `extract_sea_group_data_with_llm()`
+- [app/alibaba_extraction.py](app/alibaba_extraction.py): `extract_alibaba_data_with_llm()`
 
 **Benefits**:
 - ✅ Works on Streamlit Cloud (secrets available when client created)
@@ -278,10 +288,11 @@ extract_sea_group_data_with_llm(
 **Supported Companies**:
 - Grab Holdings (`grab-com`) → Table: `grab_metrics`
 - Sea Group Limited (`sea-group-garena`) → Table: `seagroup_metrics`
+- Alibaba Group Holding Limited (`alibaba-group`) → Table: `alibaba_metrics`
 
-**Architecture Pattern** (identical for both companies):
+**Architecture Pattern** (identical for all companies):
 
-1. **Push Functions**: `push_grab_to_supabase()`, `push_sea_group_to_supabase()`
+1. **Push Functions**: `push_grab_to_supabase()`, `push_sea_group_to_supabase()`, `push_alibaba_to_supabase()`
    - Validate Supabase client configuration
    - Check for extraction errors
    - Validate required fields (company_slug, date)
@@ -292,12 +303,12 @@ extract_sea_group_data_with_llm(
    - UPDATE if record exists, INSERT if new
    - Return success/error response with record ID
 
-2. **Duplicate Detection**: `check_duplicate_grab()`, `check_duplicate_sea_group()`
+2. **Duplicate Detection**: `check_duplicate_grab()`, `check_duplicate_sea_group()`, `check_duplicate_alibaba()`
    - Query Supabase for existing records matching company_slug + date
    - Return existing record if found, None otherwise
    - Graceful degradation if Supabase not configured
 
-3. **Records Retrieval**: `get_all_grab_records()`, `get_all_sea_group_records()`
+3. **Records Retrieval**: `get_all_grab_records()`, `get_all_sea_group_records()`, `get_all_alibaba_records()`
    - Fetch recent records ordered by date (descending)
    - Default limit: 100 records
    - Return empty list if Supabase not configured

@@ -257,6 +257,10 @@ def render_push_to_database_section(company_slug: str) -> None:
         from database import push_sea_group_to_supabase, check_duplicate_sea_group
         push_func = push_sea_group_to_supabase
         check_func = check_duplicate_sea_group
+    elif company_slug == "alibaba-group":
+        from database import push_alibaba_to_supabase, check_duplicate_alibaba
+        push_func = push_alibaba_to_supabase
+        check_func = check_duplicate_alibaba
     else:
         # Unknown company - should not reach here
         return

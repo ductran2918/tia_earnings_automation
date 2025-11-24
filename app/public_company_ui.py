@@ -98,6 +98,35 @@ def render_sea_group_ui(company_slug: str, company_name: str) -> None:
         render_push_to_database_section(company_slug)
 
 
+def render_alibaba_ui(company_slug: str, company_name: str) -> None:
+    """Render Alibaba Group-specific extraction UI with database push functionality.
+
+    Args:
+        company_slug: Company slug ("alibaba-group")
+        company_name: Company display name ("Alibaba Group")
+    """
+    # Get Alibaba Group-specific configuration
+    config = get_extractor_config(company_slug)
+    if not config:
+        st.error(f"Configuration not found for {company_name}")
+        return
+
+    # Render PDF uploader with Alibaba Group-specific button label
+    render_file_uploader(
+        company_hint=company_name,
+        company_slug=company_slug,
+        button_label=config["button_label"]  # "Extract Alibaba's metrics"
+    )
+
+    # Render results (JSON display)
+    render_public_company_results()
+
+    # Render database push section (only if extraction succeeded and database is ready)
+    extracted_data = st.session_state.get("extracted_data")
+    if extracted_data and "error" not in extracted_data and config.get("has_database_push"):
+        render_push_to_database_section(company_slug)
+
+
 def render_coming_soon_ui(company_name: str) -> None:
     """Render placeholder UI for companies not yet implemented.
 
@@ -153,6 +182,8 @@ def render_public_company_page() -> None:
                 render_grab_ui(company_slug, selected_company)
             elif company_slug == "sea-group-garena":
                 render_sea_group_ui(company_slug, selected_company)
+            elif company_slug == "alibaba-group":
+                render_alibaba_ui(company_slug, selected_company)
             # Add other implemented companies here as elif blocks
         else:
             # Company not yet implemented - show coming soon message
