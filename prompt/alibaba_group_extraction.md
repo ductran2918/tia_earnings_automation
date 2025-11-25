@@ -27,12 +27,12 @@ Return **one valid JSON object** for **Alibaba Group** that matches the schema b
 - Output this as `"date"`.
 
 # Normalization (HARD RULES)
-- All **currency** values must be **numeric** and in **millions of USD**:
-  - `$819 million` → `819`
-  - `$7.6 billion` → `7600`
-  - `(56)` or "loss of $56 million" → `-56`
+- All **currency** values must be **numeric** and in **billions of USD**:
+  - `$819 million` → `0.819`
+  - `$7.6 billion` → `7.6`
+  - `(56)` or "loss of $56 million" → `-0.056`
 - Remove `$`, commas, and words like "million/billion".
-- If a statement header says "Amounts are expressed in **thousands** of US dollars", divide by **1,000** to convert to millions.
+- If a statement header says "Amounts are expressed in **thousands** of US dollars", divide by **1,000,000** to convert to billions.
 - **Exception for "Employees":** Return the actual full integer count of employees (e.g., `204891`), do not convert to millions.
 - Do **not** round or estimate; copy the reported figure (after normalization).
 - If a value is **not found**, output `null` (do **not** invent).
