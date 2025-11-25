@@ -155,11 +155,15 @@ def process_pdf_file(
                     )
                     config = None
 
+            # Store extracted data in session state (even if it contains errors)
+            # This allows users to push data with errors and edit in Supabase table editor
+            st.session_state.extracted_data = financial_data
+
             # Display results
             if "error" in financial_data:
                 st.error(f"Extraction failed: {financial_data['error']}")
+                st.warning("⚠️ Data with errors has been stored. You can still push to Supabase and edit in the table editor.")
             else:
-                st.session_state.extracted_data = financial_data
                 # Use company-specific success message if available
                 if config and config.get("success_message"):
                     st.success(config["success_message"])
@@ -235,9 +239,9 @@ def render_push_to_database_section(company_slug: str) -> None:
     """
     from supabase_client import supabase
 
-    # Check if extracted data exists
+    # Check if extracted data exists (allow errors to pass through)
     extracted_data = st.session_state.get("extracted_data")
-    if not extracted_data or "error" in extracted_data:
+    if not extracted_data:
         return
 
     # Hide push section if Supabase not configured

@@ -63,9 +63,9 @@ def render_grab_ui(company_slug: str, company_name: str) -> None:
     # Render results (JSON display)
     render_public_company_results()
 
-    # Render database push section (only if extraction succeeded)
+    # Render database push section (always show if data exists, even with errors)
     extracted_data = st.session_state.get("extracted_data")
-    if extracted_data and "error" not in extracted_data:
+    if extracted_data:
         render_push_to_database_section(company_slug)
 
 
@@ -92,9 +92,9 @@ def render_sea_group_ui(company_slug: str, company_name: str) -> None:
     # Render results (JSON display)
     render_public_company_results()
 
-    # Render database push section (only if extraction succeeded and database is ready)
+    # Render database push section (always show if data exists and database push enabled)
     extracted_data = st.session_state.get("extracted_data")
-    if extracted_data and "error" not in extracted_data and config.get("has_database_push"):
+    if extracted_data and config.get("has_database_push"):
         render_push_to_database_section(company_slug)
 
 
@@ -121,9 +121,9 @@ def render_alibaba_ui(company_slug: str, company_name: str) -> None:
     # Render results (JSON display)
     render_public_company_results()
 
-    # Render database push section (only if extraction succeeded and database is ready)
+    # Render database push section (always show if data exists and database push enabled)
     extracted_data = st.session_state.get("extracted_data")
-    if extracted_data and "error" not in extracted_data and config.get("has_database_push"):
+    if extracted_data and config.get("has_database_push"):
         render_push_to_database_section(company_slug)
 
 
