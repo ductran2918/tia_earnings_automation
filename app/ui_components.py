@@ -244,11 +244,9 @@ def render_push_to_database_section(company_slug: str) -> None:
     if not extracted_data:
         return
 
-    # Hide push section if Supabase not configured
-    if not supabase:
-        return
-
     # Section header with divider
+    # Note: We no longer check if Supabase is configured here
+    # The button will always show, and push functions will handle validation
     st.divider()
     st.subheader("Push to Database")
 
