@@ -32,7 +32,7 @@ def push_grab_to_supabase(extracted_data: Dict) -> Dict:
     if not supabase:
         return {
             "success": False,
-            "error": "Supabase not configured. Check SUPABASE_URL and SUPABSE_SERVICE_ROLE_KEY in .env file."
+            "error": "Supabase not configured. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env file."
         }
 
     # Validation: Check for extraction errors
@@ -219,7 +219,7 @@ def push_sea_group_to_supabase(extracted_data: Dict) -> Dict:
     if not supabase:
         return {
             "success": False,
-            "error": "Supabase not configured. Check SUPABASE_URL and SUPABSE_SERVICE_ROLE_KEY in .env file."
+            "error": "Supabase not configured. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env file."
         }
 
     # Validation: Check for extraction errors
@@ -402,7 +402,7 @@ def push_alibaba_to_supabase(extracted_data: Dict) -> Dict:
     if not supabase:
         return {
             "success": False,
-            "error": "Supabase not configured. Check SUPABASE_URL and SUPABSE_SERVICE_ROLE_KEY in .env file."
+            "error": "Supabase not configured. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env file."
         }
 
     # Validation: Check for extraction errors

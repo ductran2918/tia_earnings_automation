@@ -15,7 +15,7 @@ load_dotenv()
 # Supabase URL: https://{project_id}.supabase.co
 # Service Role Key: Found in Supabase Dashboard > Settings > API
 supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABSE_SERVICE_ROLE_KEY")  # Note: User's variable name spelling
+supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")  # Service role key for admin operations
 
 # Create client instance if credentials are available
 # If credentials missing, supabase will be None (graceful degradation)
