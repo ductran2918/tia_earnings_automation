@@ -11,6 +11,12 @@ def _lazy_import_grab_extractor():
     return extract_grab_data_with_llm
 
 
+def _lazy_import_sea_group_extractor():
+    """Lazy import to avoid circular dependencies."""
+    from sea_group_extraction import extract_sea_group_data_with_llm
+    return extract_sea_group_data_with_llm
+
+
 # Company extractor registry
 # Maps company_slug -> configuration dict with extraction function, prompt, status
 COMPANY_EXTRACTORS = {
@@ -26,19 +32,23 @@ COMPANY_EXTRACTORS = {
     },
     "sea-group-garena": {
         "name": "Sea Group",
-        "extraction_function": None,  # Not yet implemented
+        "extraction_function": "extract_sea_group_data_with_llm",  # Lazy-loaded
         "button_label": "Extract Sea Group's metrics",
-        "status": "coming_soon",
-        "prompt_path": None,
-        "success_message": None,
+        "status": "implemented",  # "implemented" | "coming_soon" | "planned"
+        "prompt_path": Path(__file__).parent.parent / "prompt" / "sea_group_extraction.md",
+        "success_message": "Sea Group metrics extracted successfully. Review and push to database below.",
+        "database_table": "seagroup_metrics",  # Supabase table name (no underscore to match Supabase)
+        "has_database_push": True,  # Database push enabled
     },
     "alibaba-group": {
         "name": "Alibaba Group",
-        "extraction_function": None,
+        "extraction_function": "extract_alibaba_data_with_llm",  # Lazy-loaded
         "button_label": "Extract Alibaba's metrics",
-        "status": "coming_soon",
-        "prompt_path": None,
-        "success_message": None,
+        "status": "implemented",  # "implemented" | "coming_soon" | "planned"
+        "prompt_path": Path(__file__).parent.parent / "prompt" / "alibaba_group_extraction.md",
+        "success_message": "Alibaba Group metrics extracted successfully. Review and push to database below.",
+        "database_table": "alibaba_metrics",  # Supabase table name
+        "has_database_push": True,  # Database push functionality enabled
     },
     "bukalapak": {
         "name": "Bukalapak",
@@ -120,6 +130,12 @@ def get_extraction_function(company_slug: str) -> Optional[Callable]:
     if config["extraction_function"] == "extract_grab_data_with_llm":
         from grab_extraction import extract_grab_data_with_llm
         return extract_grab_data_with_llm
+    elif config["extraction_function"] == "extract_sea_group_data_with_llm":
+        from sea_group_extraction import extract_sea_group_data_with_llm
+        return extract_sea_group_data_with_llm
+    elif config["extraction_function"] == "extract_alibaba_data_with_llm":
+        from alibaba_extraction import extract_alibaba_data_with_llm
+        return extract_alibaba_data_with_llm
 
     return None
 

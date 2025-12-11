@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 import streamlit as st
 
-from client import client
+from client import get_client
 
 PROMPT_PATH = Path(__file__).parent.parent / "prompt" / "extract_data_prompt.md"
 PUBLIC_COMPANY_PROMPT_PATH = Path(__file__).parent.parent / "prompt" / "3statement_extraction_prompt.md"
@@ -191,7 +191,8 @@ def extract_financial_data_with_llm(
             pdf_text=pdf_text
         )
 
-        # Call LLM API
+        # Get client and call LLM API
+        client = get_client()
         response = client.chat.completions.create(
             model=model_name,
             messages=[
@@ -255,7 +256,8 @@ PDF Text:
 
 {prompt_text}"""
 
-        # Call LLM API
+        # Get client and call LLM API
+        client = get_client()
         response = client.chat.completions.create(
             model=model_name,
             messages=[
