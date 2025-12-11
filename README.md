@@ -135,7 +135,9 @@ Choose from supported companies:
 │       Database Layer (Supabase)              │
 │  - Duplicate detection                       │
 │  - INSERT/UPDATE operations                  │
-│  - Data retrieval                            │
+│  - Data retrieval with a public .csv file
+|  - Flourish charts auto  update new
+|     data                                    │
 └─────────────────────────────────────────────┘
 ```
 
